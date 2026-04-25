@@ -13,23 +13,21 @@ staff_limit = st.sidebar.number_input("Staff Capacity", min_value=0, value=20)
 # 2. Instructions for User
 with st.expander("📊 See required Excel format"):
     st.write("Your file must include these exact column headers:")
-    
-    # Display a sample table as a guide
     sample_format = pd.DataFrame({
-        "Project": ["Project A", "Project B"],
-        "Cost": [100, 150],
-        "Benefit": [200, 300],
-        "Staff": [2, 3]
+        "Project": ["Example A", "Example B"],
+        "Cost": [100, 50],
+        "Benefit": [200, 100],
+        "Staff": [2, 1]
     })
     st.table(sample_format)
-    
-    st.info("⚠️ Note: Column names are case-sensitive. Avoid using currency symbols like $.")
+    st.info("⚠️ Note: Column names are case-sensitive. Use plain numbers only.")
 
-# Your existing file uploader code follows...
+# 3. File Uploader
 uploaded_file = st.file_uploader("Upload your Project Data (CSV or Excel)", type=["csv", "xlsx", "xls"])
 
-    # Auto-detect file type
+if uploaded_file is not None:
     try:
+        # Load the file
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
@@ -42,7 +40,7 @@ uploaded_file = st.file_uploader("Upload your Project Data (CSV or Excel)", type
         if all(col in df.columns for col in required):
             
             if st.button("Run Smart Allocation"):
-                # 3. Optimization Logic
+                # 4. Optimization Logic
                 model = LpProblem(name="Resource_Optimization", sense=LpMaximize)
                 project_vars = LpVariable.dicts("Select", df.Project, cat="Binary")
 
@@ -55,7 +53,7 @@ uploaded_file = st.file_uploader("Upload your Project Data (CSV or Excel)", type
 
                 model.solve()
 
-                # 4. Display Results
+                # 5. Display Results
                 selected = [df.iloc[i] for i in df.index if project_vars[df.Project[i]].varValue == 1]
                 if selected:
                     results_df = pd.DataFrame(selected)
