@@ -120,3 +120,24 @@ if uploaded_file is not None:
             st.error(f"Missing columns! Your file must have: {', '.join(required)}")
     except Exception as e:
         st.error(f"Error: {e}")
+import google.generativeai as genai
+
+# 1. Setup AI (Paste your Key in Streamlit Secrets first!)
+try:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    model_ai = genai.GenerativeModel('gemini-pro')
+except Exception:
+    st.warning("AI Key not found. Add GOOGLE_API_KEY to Streamlit Secrets to enable AI insights.")
+
+# 2. Add this inside your "if not res_df.empty:" block at the very end
+st.divider()
+st.subheader("🤖 AI Allocation Insights")
+
+if st.button("Ask AI to Analyze This Plan"):
+    # Build a prompt using your result data
+    data_summary = res_df[['Project', 'Priority_Score', 'Urgency']].to_string()
+    prompt = f"Analyze this resource allocation plan and tell me why it's efficient. Data: {data_summary}"
+    
+    with st.spinner("AI is thinking..."):
+        response = model_ai.generate_content(prompt)
+        st.write(response.text)
