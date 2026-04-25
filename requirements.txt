@@ -3,4 +3,3 @@ pandas
 streamlit
 plotly
 openpyxl
-st-supabase-connection
