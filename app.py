@@ -1,85 +1,82 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from pulp import LpMaximize, LpProblem, LpVariable, lpSum, value
 
-st.set_page_config(page_title="Smart Volunteer AI", page_icon="🤝", layout="wide")
+# 1. Advanced Configuration
+st.set_page_config(page_title="AI Resource Intel", layout="wide")
 
-# --- SMART LOGIC: PRIORITY SCORING ---
-def calculate_priority(row):
-    # Higher Score = Higher Priority
-    # (Benefit * Urgency) / Cost
-    urgency_map = {"Low": 1, "Medium": 2, "High": 3, "Critical": 5}
-    score = (row['Benefit'] * urgency_map.get(row['Urgency'], 1)) / (row['Cost'] + 1)
+# 2. Intelligent Scoring Engine (The "Smart" Part)
+def compute_smart_score(row):
+    """
+    Heuristic: Weights Urgency and Impact against Resource Consumption.
+    This simulates a decision-maker's logic.
+    """
+    weights = {"Critical": 10, "High": 7, "Medium": 4, "Low": 2}
+    urgency_val = weights.get(row['Urgency'], 1)
+    # ROI = (Impact * Urgency) / (Cost + Staff_Hours)
+    score = (row['Benefit'] * urgency_val) / (row['Cost'] + row['Staff'] + 1)
     return round(score, 2)
 
-st.title("🤝 Smart Volunteer Intelligence System")
-st.markdown("---")
+st.title("🧠 Intelligent Resource Allocation System")
+st.caption("Powered by MILP (Mixed-Integer Linear Programming) Optimization")
 
-# --- SIDEBAR: MISSION CONTROL ---
+# 3. Sidebar - The "Control Room"
 with st.sidebar:
-    st.header("⚙️ System Constraints")
-    budget_limit = st.number_input("💰 Funding Budget", min_value=0, value=1000)
-    staff_limit = st.number_input("👥 Volunteer Hours", min_value=0, value=100)
-    selected_skill = st.multiselect("🎯 Required Skills", ["Tech", "Medical", "Education", "Manual"], default=["Tech", "Medical"])
+    st.header("🛠️ Constraints")
+    max_budget = st.slider("Max Budget ($)", 500, 5000, 1500)
+    max_staff = st.slider("Max Staff Hours", 10, 200, 80)
+    st.divider()
+    st.markdown("### Why this framework?\n*Streamlit allows for **High-Fidelity Prototyping**, turning Python data models into interactive software instantly.*")
 
-# --- DATA INPUT ---
-uploaded_file = st.file_uploader("📤 Upload Task Manifest (CSV/Excel)", type=["csv", "xlsx"])
+# 4. Data Handling
+uploaded_file = st.file_uploader("Upload Project Manifest", type=["csv", "xlsx"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
     
-    # --- THE "SMART" ENGINE ---
-    # 1. Skill Filtering
-    df['Skill_Match'] = df['Required_Skill'].apply(lambda x: x in selected_skill)
-    # 2. Priority Scoring (The AI Decision Factor)
-    df['Priority_Score'] = df.apply(calculate_priority, axis=1)
+    # Injecting Intelligence
+    df['Intelligence_Score'] = df.apply(compute_smart_score, axis=1)
     
-    tab1, tab2, tab3 = st.tabs(["📋 Task Inbox", "🧠 AI Decision Engine", "📈 Impact Analytics"])
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("📥 Input Intelligence")
+        st.dataframe(df, use_container_width=True)
 
-    with tab1:
-        st.write("### Incoming Tasks & Skill Matching")
-        st.dataframe(df.style.highlight_max(axis=0, subset=['Priority_Score'], color='#90ee90'))
+    # 5. The Solver (The "Math" Part)
+    model = LpProblem(name="Optimal_Allocation", sense=LpMaximize)
+    projects = df['Project'].tolist()
+    # Decision Variables: Binary (0 or 1)
+    x = LpVariable.dicts("project", projects, cat="Binary")
 
-    with tab2:
-        if st.button("🚀 Run Smart Allocation"):
-            # Optimization based on Priority Score
-            model = LpProblem(name="Smart_Match", sense=LpMaximize)
-            project_vars = LpVariable.dicts("Assign", df.Project, cat="Binary")
-            
-            # Objective: Maximize Priority Score for matched skills
-            model += lpSum([df.Priority_Score[i] * project_vars[df.Project[i]] for i in df.index if df.Skill_Match[i]])
-            
-            # Constraints
-            model += lpSum([df.Cost[i] * project_vars[df.Project[i]] for i in df.index]) <= budget_limit
-            model += lpSum([df.Staff[i] * project_vars[df.Project[i]] for i in df.index]) <= staff_limit
+    # Objective: Maximize Intelligence Score
+    model += lpSum([df.loc[i, 'Intelligence_Score'] * x[projects[i]] for i in range(len(projects))])
 
-            model.solve()
-            
-            # Results
-            res_df = df.iloc[[i for i in df.index if project_vars[df.Project[i]].varValue == 1]]
-            
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.metric("Total Priority Index", f"{int(value(model.objective))}")
-                st.metric("Tasks Automated", len(res_df))
-            with col2:
-                # Heatmap-style Priority Chart
-                fig = px.treemap(res_df, path=['Urgency', 'Project'], values='Priority_Score', 
-                                 color='Priority_Score', color_continuous_scale='RdYlGn')
-                st.plotly_chart(fig, use_container_width=True)
+    # Constraints
+    model += lpSum([df.loc[i, 'Cost'] * x[projects[i]] for i in range(len(projects))]) <= max_budget
+    model += lpSum([df.loc[i, 'Staff'] * x[projects[i]] for i in range(len(projects))]) <= max_staff
 
-            st.write("### ✅ Auto-Assigned Task Lifecycle")
-            st.table(res_df[['Project', 'Urgency', 'Priority_Score', 'Required_Skill']])
+    model.solve()
 
-    with tab3:
-        st.write("### Resource Utilization Trend")
-        fig2 = go.Figure()
-        fig2.add_trace(go.Bar(name='Available', x=['Budget', 'Hours'], y=[budget_limit, staff_limit], marker_color='lightgray'))
-        if 'res_df' in locals():
-            fig2.add_trace(go.Bar(name='Used', x=['Budget', 'Hours'], y=[res_df.Cost.sum(), res_df.Staff.sum()], marker_color='blue'))
-        st.plotly_chart(fig2)
+    # 6. Results & Visualization
+    selected_projects = [p for p in projects if x[p].varValue == 1]
+    results_df = df[df['Project'].isin(selected_projects)]
+
+    with col2:
+        st.subheader("🚀 Optimized Selection")
+        st.metric("Global Efficiency Score", f"{int(value(model.objective))}")
+        st.dataframe(results_df, use_container_width=True)
+
+    # 7. Impact Visualization (Heatmap)
+    st.divider()
+    st.subheader("📈 Decision Impact Visualization")
+    fig = px.scatter(df, x="Cost", y="Benefit", size="Staff", color="Urgency",
+                 hover_name="Project", title="Project Landscape (Bubble size = Staff Hours)")
+    # Highlight selected ones
+    fig.add_scatter(x=results_df['Cost'], y=results_df['Benefit'], mode='markers', 
+                marker=dict(symbol='star', size=15, color='gold'), name='Optimized Pick')
+    st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("Please upload a file with columns: Project, Cost, Benefit, Staff, Required_Skill, Urgency")
+    st.warning("Please upload a CSV with: Project, Cost, Benefit, Staff, Urgency")
