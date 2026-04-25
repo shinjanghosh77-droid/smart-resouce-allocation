@@ -10,10 +10,24 @@ st.sidebar.header("Settings")
 budget_limit = st.sidebar.number_input("Total Budget", min_value=0, value=500)
 staff_limit = st.sidebar.number_input("Staff Capacity", min_value=0, value=20)
 
-# 2. File Uploader
+# 2. Instructions for User
+with st.expander("📊 See required Excel format"):
+    st.write("Your file must include these exact column headers:")
+    
+    # Display a sample table as a guide
+    sample_format = pd.DataFrame({
+        "Project": ["Project A", "Project B"],
+        "Cost": [100, 150],
+        "Benefit": [200, 300],
+        "Staff": [2, 3]
+    })
+    st.table(sample_format)
+    
+    st.info("⚠️ Note: Column names are case-sensitive. Avoid using currency symbols like $.")
+
+# Your existing file uploader code follows...
 uploaded_file = st.file_uploader("Upload your Project Data (CSV or Excel)", type=["csv", "xlsx", "xls"])
 
-if uploaded_file is not None:
     # Auto-detect file type
     try:
         if uploaded_file.name.endswith('.csv'):
