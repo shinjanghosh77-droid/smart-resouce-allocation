@@ -1,4 +1,5 @@
 pulp
 pandas
 streamlit
+plotly
 openpyxl
