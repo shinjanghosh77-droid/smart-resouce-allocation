@@ -141,3 +141,32 @@ if st.button("Ask AI to Analyze This Plan"):
     with st.spinner("AI is thinking..."):
         response = model_ai.generate_content(prompt)
         st.write(response.text)
+# --- Everything above stays the same ---
+
+if st.button("Run Smart Allocation Engine"):
+    # ... (Your existing optimization code that creates res_df) ...
+    
+    if not res_df.empty:
+        # 1. Show your metrics and charts (existing code)
+        st.metric("Total Priority Index", f"📈 {int(value(model.objective))}")
+        # ... (other metrics and bar charts) ...
+
+        # 2. THE AI SECTION (Must be inside this 'if not res_df.empty' block)
+        st.divider()
+        st.subheader("🤖 AI Strategic Consultant")
+        
+        try:
+            # Prepare the data for Gemini
+            data_summary = res_df[['Project', 'Priority_Score', 'Urgency']].to_string()
+            prompt = f"As a strategic consultant, analyze why these specific projects were selected for allocation. Focus on the Priority Score and Urgency. Data: {data_summary}"
+            
+            with st.spinner("AI Consultant is analyzing the plan..."):
+                genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                model_ai = genai.GenerativeModel('gemini-pro')
+                response = model_ai.generate_content(prompt)
+                st.write(response.text)
+        except Exception as e:
+            st.info("💡 Note: To see AI insights, ensure GOOGLE_API_KEY is added to Streamlit Secrets.")
+
+# --- End of code ---
+
