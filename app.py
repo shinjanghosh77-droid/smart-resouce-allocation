@@ -3,6 +3,31 @@ import pandas as pd
 import plotly.express as px
 from pulp import LpMaximize, LpProblem, LpVariable, lpSum, value
 
+from st_supabase_connection import SupabaseConnection
+
+# Initialize connection using the Secret you added to GitHub
+conn = st.connection("supabase", type=SupabaseConnection)
+
+# --- Inside your 'Run Smart Allocation' button logic ---
+if st.button("🚀 Run Smart Allocation"):
+    # ... (Keep your optimization code here) ...
+    
+    # NEW: Save to Database
+    for _, row in results_df.iterrows():
+        try:
+            conn.table("allocations").insert({
+                "project": row['Project'],
+                "cost": row['Cost'],
+                "benefit": row['Benefit'],
+                "staff": row['Staff'],
+                "urgency": row['Urgency']
+            }).execute()
+        except Exception as e:
+            st.error(f"Save failed: {e}")
+    
+    st.success("✅ Results saved to Cloud Database!")
+
+
 # 1. Advanced Configuration
 st.set_page_config(page_title="AI Resource Intel", layout="wide")
 
