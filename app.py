@@ -2,106 +2,108 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from pulp import LpMaximize, LpProblem, LpVariable, lpSum, value
-
 from st_supabase_connection import SupabaseConnection
 
-# Initialize connection using the Secret you added to GitHub
-conn = st.connection("supabase", type=SupabaseConnection)
+# 1. Page & Professional UI Configuration
+st.set_page_config(page_title="AI Resource Intel", layout="wide", page_icon="🧠")
 
-# --- Inside your 'Run Smart Allocation' button logic ---
-if st.button("🚀 Run Smart Allocation"):
-    # ... (Keep your optimization code here) ...
-    
-    # NEW: Save to Database
-    for _, row in results_df.iterrows():
-        try:
-            conn.table("allocations").insert({
-                "project": row['Project'],
-                "cost": row['Cost'],
-                "benefit": row['Benefit'],
-                "staff": row['Staff'],
-                "urgency": row['Urgency']
-            }).execute()
-        except Exception as e:
-            st.error(f"Save failed: {e}")
-    
-    st.success("✅ Results saved to Cloud Database!")
+# Custom CSS for a clean, modern dashboard
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #007bff; color: white; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
 
+# 2. Database Connection (Using the GitHub Secrets we added)
+try:
+    conn = st.connection(
+        "supabase",
+        type=SupabaseConnection,
+        url=st.secrets["SUPABASE_URL"],
+        key=st.secrets["SUPABASE_KEY"]
+    )
+except Exception as e:
+    st.error("⚠️ Database Connection Failed. Check your GitHub Secrets!")
 
-# 1. Advanced Configuration
-st.set_page_config(page_title="AI Resource Intel", layout="wide")
-
-# 2. Intelligent Scoring Engine (The "Smart" Part)
+# 3. Intelligent Scoring Logic
 def compute_smart_score(row):
-    """
-    Heuristic: Weights Urgency and Impact against Resource Consumption.
-    This simulates a decision-maker's logic.
-    """
     weights = {"Critical": 10, "High": 7, "Medium": 4, "Low": 2}
     urgency_val = weights.get(row['Urgency'], 1)
-    # ROI = (Impact * Urgency) / (Cost + Staff_Hours)
+    # ROI Score = (Benefit * Urgency) / (Resources Spent)
     score = (row['Benefit'] * urgency_val) / (row['Cost'] + row['Staff'] + 1)
     return round(score, 2)
 
+# 4. Sidebar Control Panel
 st.title("🧠 Intelligent Resource Allocation System")
-st.caption("Powered by MILP (Mixed-Integer Linear Programming) Optimization")
-
-# 3. Sidebar - The "Control Room"
 with st.sidebar:
-    st.header("🛠️ Constraints")
-    max_budget = st.slider("Max Budget ($)", 500, 5000, 1500)
-    max_staff = st.slider("Max Staff Hours", 10, 200, 80)
+    st.header("⚙️ Constraints")
+    max_budget = st.slider("Max Budget ($)", 100, 5000, 1500)
+    max_staff = st.slider("Max Staff Hours", 10, 300, 80)
     st.divider()
-    st.markdown("### Why this framework?\n*Streamlit allows for **High-Fidelity Prototyping**, turning Python data models into interactive software instantly.*")
+    st.info("This system uses Mixed-Integer Linear Programming (MILP) to find the mathematically optimal project mix.")
 
-# 4. Data Handling
-uploaded_file = st.file_uploader("Upload Project Manifest", type=["csv", "xlsx"])
+# 5. File Upload & Instructions
+with st.expander("📊 See required Excel format"):
+    st.write("Ensure your file has these exact columns: **Project, Cost, Benefit, Staff, Urgency**")
+    st.table(pd.DataFrame({"Project": ["A"], "Cost": [100], "Benefit": [200], "Staff": [10], "Urgency": ["High"]}))
+
+uploaded_file = st.file_uploader("Upload Project Manifest (CSV or Excel)", type=["csv", "xlsx"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-    
-    # Injecting Intelligence
     df['Intelligence_Score'] = df.apply(compute_smart_score, axis=1)
     
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("📥 Input Intelligence")
+    tab1, tab2 = st.tabs(["📋 Data Preview", "🚀 Optimization Result"])
+
+    with tab1:
         st.dataframe(df, use_container_width=True)
 
-    # 5. The Solver (The "Math" Part)
-    model = LpProblem(name="Optimal_Allocation", sense=LpMaximize)
-    projects = df['Project'].tolist()
-    # Decision Variables: Binary (0 or 1)
-    x = LpVariable.dicts("project", projects, cat="Binary")
+    with tab2:
+        if st.button("Calculate & Save Optimal Allocation"):
+            # --- THE OPTIMIZATION ENGINE ---
+            model = LpProblem(name="Optimal_Allocation", sense=LpMaximize)
+            projects = df['Project'].tolist()
+            x = LpVariable.dicts("assign", projects, cat="Binary")
 
-    # Objective: Maximize Intelligence Score
-    model += lpSum([df.loc[i, 'Intelligence_Score'] * x[projects[i]] for i in range(len(projects))])
+            model += lpSum([df.loc[i, 'Intelligence_Score'] * x[projects[i]] for i in range(len(projects))])
+            model += lpSum([df.loc[i, 'Cost'] * x[projects[i]] for i in range(len(projects))]) <= max_budget
+            model += lpSum([df.loc[i, 'Staff'] * x[projects[i]] for i in range(len(projects))]) <= max_staff
+            model.solve()
 
-    # Constraints
-    model += lpSum([df.loc[i, 'Cost'] * x[projects[i]] for i in range(len(projects))]) <= max_budget
-    model += lpSum([df.loc[i, 'Staff'] * x[projects[i]] for i in range(len(projects))]) <= max_staff
+            # --- PROCESS RESULTS ---
+            selected_names = [p for p in projects if x[p].varValue == 1]
+            res_df = df[df['Project'].isin(selected_names)]
 
-    model.solve()
+            if not res_df.empty:
+                # Show Metrics
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Priority Index", int(value(model.objective)))
+                c2.metric("Budget Used", f"${res_df.Cost.sum()}")
+                c3.metric("Staff Hours", f"{res_df.Staff.sum()}h")
 
-    # 6. Results & Visualization
-    selected_projects = [p for p in projects if x[p].varValue == 1]
-    results_df = df[df['Project'].isin(selected_projects)]
+                # Visual Charts
+                fig = px.bar(res_df, x="Project", y="Intelligence_Score", color="Urgency", title="Allocated Project Scores")
+                st.plotly_chart(fig, use_container_width=True)
 
-    with col2:
-        st.subheader("🚀 Optimized Selection")
-        st.metric("Global Efficiency Score", f"{int(value(model.objective))}")
-        st.dataframe(results_df, use_container_width=True)
+                st.write("### ✅ Selected Plan")
+                st.dataframe(res_df, use_container_width=True)
 
-    # 7. Impact Visualization (Heatmap)
-    st.divider()
-    st.subheader("📈 Decision Impact Visualization")
-    fig = px.scatter(df, x="Cost", y="Benefit", size="Staff", color="Urgency",
-                 hover_name="Project", title="Project Landscape (Bubble size = Staff Hours)")
-    # Highlight selected ones
-    fig.add_scatter(x=results_df['Cost'], y=results_df['Benefit'], mode='markers', 
-                marker=dict(symbol='star', size=15, color='gold'), name='Optimized Pick')
-    st.plotly_chart(fig, use_container_width=True)
+                # --- SAVE TO SUPABASE ---
+                for _, row in res_df.iterrows():
+                    try:
+                        conn.table("allocations").insert({
+                            "project": row['Project'],
+                            "cost": int(row['Cost']),
+                            "benefit": int(row['Benefit']),
+                            "staff": int(row['Staff']),
+                            "urgency": row['Urgency']
+                        }).execute()
+                    except:
+                        pass # Silently handle duplicates if necessary
+                st.success("✨ Optimal plan saved to cloud database successfully!")
+            else:
+                st.error("No projects fit the current constraints.")
 
 else:
-    st.warning("Please upload a CSV with: Project, Cost, Benefit, Staff, Urgency")
+    st.info("Waiting for data upload...")
