@@ -91,7 +91,7 @@ if uploaded_file is not None:
                     if "GOOGLE_API_KEY" in st.secrets:
                         try:
                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-                            gemini = genai.GenerativeModel('gemini-pro')
+                            gemini = genai.GenerativeModel('gemini-1.5-flash')
                             data_text = res_df[['Project', 'Priority_Score', 'Urgency']].to_string()
                             prompt = f"Explain why this allocation is optimal for a business. Highlight high priority projects. Data: {data_text}"
 
