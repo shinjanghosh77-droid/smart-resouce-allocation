@@ -96,3 +96,22 @@ if uploaded_file is not None:
         st.error(f"Error: {e}")
 else:
     st.info("Please upload a file to start.")
+# 5. Fixed Format Instructions (Always Visible)
+st.subheader("📋 Step 1: Prepare Your Spreadsheet")
+st.write("Your Excel or CSV file must have these exact column headers:")
+
+# This creates the visual table on the frontend
+sample_data = pd.DataFrame({
+    "Project": ["Example A", "Example B"],
+    "Cost": [100, 200],
+    "Benefit": [250, 450],
+    "Staff": [5, 10],
+    "Urgency": ["High", "Medium"]
+})
+st.table(sample_data) # This displays the static table in the front
+
+st.info("⚠️ Note: Column names are case-sensitive. Use plain numbers for Cost, Benefit, and Staff.")
+
+# The file uploader follows right after
+uploaded_file = st.file_uploader("📤 Now, upload your project data", type=["csv", "xlsx"])
+
